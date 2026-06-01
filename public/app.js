@@ -126,6 +126,46 @@ document.addEventListener('click', async (event) => {
     return;
   }
 
+  const downloadButton = event.target.closest('[data-download-target]');
+  if (downloadButton) {
+    warningBox.classList.add('hidden');
+
+    const input = document.getElementById(downloadButton.dataset.downloadTarget);
+    if (!input?.value) {
+      warningBox.textContent = '请先生成订阅链接，再下载订阅文件。';
+      warningBox.classList.remove('hidden');
+      return;
+    }
+
+    const originalText = downloadButton.textContent;
+    downloadButton.disabled = true;
+    downloadButton.textContent = '下载中';
+
+    try {
+      const response = await fetch(input.value);
+      if (!response.ok) {
+        throw new Error(`下载失败：${response.status}`);
+      }
+
+      const content = await response.text();
+      const blobUrl = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }));
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = downloadButton.dataset.downloadFilename || 'sub.txt';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      warningBox.textContent = error.message || '下载失败，请稍后重试。';
+      warningBox.classList.remove('hidden');
+    } finally {
+      downloadButton.disabled = false;
+      downloadButton.textContent = originalText;
+    }
+    return;
+  }
+
   const qrButton = event.target.closest('[data-qrcode-target]');
   if (qrButton) {
     warningBox.classList.add('hidden');

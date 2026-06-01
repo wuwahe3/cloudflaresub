@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   buildConvertedClashUrl,
   decryptPayload,
@@ -89,5 +90,10 @@ const failingKvBody = await failingKvResponse.json();
 assert.equal(failingKvResponse.status, 500);
 assert.equal(failingKvBody.ok, false);
 assert.match(failingKvBody.error, /KV unavailable/);
+
+const indexHtml = await readFile(new URL('../public/index.html', import.meta.url), 'utf8');
+const appJs = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+assert.match(indexHtml, /data-download-target="clashUrl"/);
+assert.match(appJs, /sub\.txt/);
 
 console.log('smoke test passed');
