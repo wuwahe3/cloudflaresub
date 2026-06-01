@@ -192,6 +192,25 @@ cf.example.com:443#US-Edge"
             <div class="sub-card-head">
               <div class="client-meta">
                 <div class="client-icon">
+                  <img src="/icons/clash.svg" alt="Clash 转换" />
+                </div>
+                <div>
+                  <h3>Clash 转换</h3>
+                  <p>通过订阅转换服务生成 ACL4SSR 配置链接</p>
+                </div>
+              </div>
+            </div>
+            <div class="sub-actions">
+              <input id="convertedClashUrl" readonly />
+              <button data-copy-target="convertedClashUrl" type="button" class="secondary small">复制</button>
+              <button data-qrcode-target="convertedClashUrl" type="button" class="secondary small">二维码</button>
+            </div>
+          </article>
+
+          <article class="sub-card">
+            <div class="sub-card-head">
+              <div class="client-meta">
+                <div class="client-icon">
                   <img src="/icons/shadowrocket.svg" alt="Shadowrocket" />
                 </div>
                 <div>

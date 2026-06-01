@@ -8,6 +8,7 @@ const previewBody = document.getElementById('previewBody');
 const autoUrl = document.getElementById('autoUrl');
 const rawUrl = document.getElementById('rawUrl');
 const clashUrl = document.getElementById('clashUrl');
+const convertedClashUrl = document.getElementById('convertedClashUrl');
 const surgeUrl = document.getElementById('surgeUrl');
 const emptyState = document.getElementById('emptyState');
 
@@ -66,6 +67,7 @@ form.addEventListener('submit', async (event) => {
     rawUrl.value = data.urls.raw;
     document.getElementById('rocketUrl').value = data.urls.raw;
     clashUrl.value = data.urls.clash;
+    convertedClashUrl.value = data.urls.convertedClash || '';
     surgeUrl.value = data.urls.surge;
 
     emptyState.classList.add('hidden');

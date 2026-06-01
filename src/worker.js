@@ -4,6 +4,12 @@
 // - Secret/Variable: SUB_ACCESS_TOKEN
 // Optional:
 // - Secret/Variable: SUB_LINK_SECRET (legacy long-token compatibility)
+// - Variable: SUB_CONVERTER_SERVER
+// - Variable: SUB_CONVERTER_CONFIG_URL
+
+const DEFAULT_SUB_CONVERTER_SERVER = 'http://180.184.42.229:8880';
+const DEFAULT_SUB_CONVERTER_CONFIG_URL =
+  'https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@master/Clash/config/ACL4SSR_Online.ini';
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
@@ -433,6 +439,15 @@ async function buildDedupHash(body) {
   return sha256Hex(JSON.stringify(normalized));
 }
 
+function buildConvertedClashUrl(clashUrl, env) {
+  const server = String(env.SUB_CONVERTER_SERVER || DEFAULT_SUB_CONVERTER_SERVER).replace(/\/+$/, '');
+  const configUrl = String(env.SUB_CONVERTER_CONFIG_URL || DEFAULT_SUB_CONVERTER_CONFIG_URL);
+
+  return `${server}/sub?target=clash&url=${encodeURIComponent(clashUrl)}&config=${encodeURIComponent(
+    configUrl,
+  )}&emoji=true&udp=true`;
+}
+
 async function handleGenerate(request, env, url) {
   let body;
   try {
@@ -487,6 +502,7 @@ async function handleGenerate(request, env, url) {
         ? `?target=${target}&token=${encodeURIComponent(accessToken)}`
         : `?token=${encodeURIComponent(accessToken)}`
     }`;
+  const clashUrl = withToken('clash');
 
   return json({
     ok: true,
@@ -496,7 +512,8 @@ async function handleGenerate(request, env, url) {
     urls: {
       auto: withToken(''),
       raw: withToken('raw'),
-      clash: withToken('clash'),
+      clash: clashUrl,
+      convertedClash: buildConvertedClashUrl(clashUrl, env),
       surge: withToken('surge'),
     },
     counts: {

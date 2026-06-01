@@ -22,6 +22,7 @@
 - 相同输入自动去重（7 天 TTL）
 - 支持 `SUB_ACCESS_TOKEN` 访问令牌保护
 - 支持导出：Raw（Base64）/ Clash（YAML）/ Surge（文本）
+- 同步生成经过订阅转换服务处理的 Clash 链接
 
 ## 项目结构
 
@@ -93,6 +94,15 @@ cloudflaresub/
 - 设置后，请求 `/sub/:id` 必须带 `?token=...`
 - 不设置也可运行，但订阅链接没有二次访问保护
 
+### 6.1) 可选：配置订阅转换服务
+
+默认会使用下面的订阅转换参数生成 Clash 转换链接：
+
+- `SUB_CONVERTER_SERVER`: `http://180.184.42.229:8880`
+- `SUB_CONVERTER_CONFIG_URL`: `https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@master/Clash/config/ACL4SSR_Online.ini`
+
+如果要换成自己的 subconverter 服务或配置文件，可在 Worker 的 `Settings` -> `Variables` 中添加同名变量。
+
 ### 7) 验证线上服务
 
 - 打开 Worker 域名（如 `https://<name>.<subdomain>.workers.dev`）
@@ -141,6 +151,7 @@ cloudflaresub/
     "auto": "https://<worker>/sub/AbC123xYz9?token=...",
     "raw": "https://<worker>/sub/AbC123xYz9?target=raw&token=...",
     "clash": "https://<worker>/sub/AbC123xYz9?target=clash&token=...",
+    "convertedClash": "http://180.184.42.229:8880/sub?target=clash&url=...",
     "surge": "https://<worker>/sub/AbC123xYz9?target=surge&token=..."
   }
 }
@@ -165,6 +176,7 @@ curl "https://<worker>/sub/<id>?target=clash&token=<SUB_ACCESS_TOKEN>"
 - 粘贴节点链接
 - 粘贴优选 IP / 域名
 - 生成并展示各客户端订阅链接
+- 同步展示 Clash 转换订阅链接
 - 一键复制 / 生成二维码
 
 

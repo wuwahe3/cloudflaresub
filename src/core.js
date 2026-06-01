@@ -2,6 +2,9 @@ const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
 const DEFAULT_TEST_URL = 'http://cp.cloudflare.com/generate_204';
+const DEFAULT_SUB_CONVERTER_SERVER = 'http://180.184.42.229:8880';
+const DEFAULT_SUB_CONVERTER_CONFIG_URL =
+  'https://cdn.jsdelivr.net/gh/ACL4SSR/ACL4SSR@master/Clash/config/ACL4SSR_Online.ini';
 
 export const SUPPORTED_PROTOCOLS = ['vmess', 'vless', 'trojan'];
 
@@ -48,6 +51,16 @@ export function buildShareUrls(origin, token) {
     surge: `${base}?target=surge`,
     json: `${base}?target=json`,
   };
+}
+
+export function buildConvertedClashUrl(clashUrl, options = {}) {
+  const server = String(options.server || DEFAULT_SUB_CONVERTER_SERVER).replace(/\/+$/, '');
+  const configUrl = String(options.configUrl || DEFAULT_SUB_CONVERTER_CONFIG_URL);
+  const target = String(options.target || 'clash');
+
+  return `${server}/sub?target=${encodeURIComponent(target)}&url=${encodeURIComponent(
+    clashUrl,
+  )}&config=${encodeURIComponent(configUrl)}&emoji=true&udp=true`;
 }
 
 export async function encryptPayload(payload, secret) {

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import {
+  buildConvertedClashUrl,
   decryptPayload,
   encryptPayload,
   expandNodes,
@@ -36,6 +37,12 @@ assert.match(clash, /edge\.example\.com/);
 const surge = renderSurgeSubscription(expanded.nodes, 'https://sub.example.com/sub/demo?target=surge');
 assert.match(surge, /\[Proxy]/);
 assert.match(surge, /vmess/);
+
+const convertedClash = buildConvertedClashUrl('https://sub.example.com/sub/demo?target=clash&token=secret');
+assert.equal(
+  convertedClash,
+  'http://180.184.42.229:8880/sub?target=clash&url=https%3A%2F%2Fsub.example.com%2Fsub%2Fdemo%3Ftarget%3Dclash%26token%3Dsecret&config=https%3A%2F%2Fcdn.jsdelivr.net%2Fgh%2FACL4SSR%2FACL4SSR%40master%2FClash%2Fconfig%2FACL4SSR_Online.ini&emoji=true&udp=true',
+);
 
 const secret = 'this-is-a-very-secret-key';
 const token = await encryptPayload({ nodes: expanded.nodes }, secret);
