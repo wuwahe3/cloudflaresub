@@ -10,6 +10,7 @@ import {
   renderRawSubscription,
   renderSurgeSubscription,
 } from '../src/core.js';
+import worker from '../src/worker.js';
 
 const vmess = 'vmess://ewogICJ2IjogIjIiLAogICJwcyI6ICJkZW1vLXdzLXRscyIsCiAgImFkZCI6ICJlZGdlLmV4YW1wbGUuY29tIiwKICAicG9ydCI6ICI0NDMiLAogICJpZCI6ICIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAwMDEiLAogICJzY3kiOiAiYXV0byIsCiAgIm5ldCI6ICJ3cyIsCiAgInRscyI6ICJ0bHMiLAogICJwYXRoIjogIi93cyIsCiAgImhvc3QiOiAiZWRnZS5leGFtcGxlLmNvbSIsCiAgInNuaSI6ICJlZGdlLmV4YW1wbGUuY29tIiwKICAiZnAiOiAiY2hyb21lIiwKICAiYWxwbiI6ICJoMixodHRwLzEuMSIKfQ==';
 
@@ -48,5 +49,45 @@ const secret = 'this-is-a-very-secret-key';
 const token = await encryptPayload({ nodes: expanded.nodes }, secret);
 const payload = await decryptPayload(token, secret);
 assert.equal(payload.nodes.length, 2);
+
+const generateRequestBody = {
+  nodeLinks: vmess,
+  preferredIps: '104.16.1.2#HK',
+  namePrefix: 'CF',
+  keepOriginalHost: true,
+};
+
+const missingKvResponse = await worker.fetch(
+  new Request('https://sub.example.com/api/generate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(generateRequestBody),
+  }),
+  {},
+);
+const missingKvBody = await missingKvResponse.json();
+assert.equal(missingKvResponse.status, 500);
+assert.equal(missingKvBody.ok, false);
+assert.match(missingKvBody.error, /SUB_STORE/);
+
+const failingKvResponse = await worker.fetch(
+  new Request('https://sub.example.com/api/generate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(generateRequestBody),
+  }),
+  {
+    SUB_STORE: {
+      async get() {
+        throw new Error('KV unavailable');
+      },
+      async put() {},
+    },
+  },
+);
+const failingKvBody = await failingKvResponse.json();
+assert.equal(failingKvResponse.status, 500);
+assert.equal(failingKvBody.ok, false);
+assert.match(failingKvBody.error, /KV unavailable/);
 
 console.log('smoke test passed');

@@ -33,6 +33,13 @@ function text(body, status = 200, contentType = 'text/plain; charset=utf-8') {
   });
 }
 
+function requireSubStore(env) {
+  if (!env?.SUB_STORE || typeof env.SUB_STORE.get !== 'function' || typeof env.SUB_STORE.put !== 'function') {
+    throw new Error('未绑定 KV namespace：请在 Worker Bindings 中添加 SUB_STORE。');
+  }
+  return env.SUB_STORE;
+}
+
 function b64EncodeUtf8(str) {
   return btoa(unescape(encodeURIComponent(str)));
 }
@@ -404,9 +411,10 @@ function createShortId(length = 10) {
 }
 
 async function createUniqueShortId(env, tries = 8) {
+  const store = requireSubStore(env);
   for (let i = 0; i < tries; i++) {
     const id = createShortId(10);
-    const exists = await env.SUB_STORE.get(`sub:${id}`);
+    const exists = await store.get(`sub:${id}`);
     if (!exists) return id;
   }
   throw new Error('无法生成唯一短链接，请稍后再试');
@@ -449,6 +457,13 @@ function buildConvertedClashUrl(clashUrl, env) {
 }
 
 async function handleGenerate(request, env, url) {
+  let store;
+  try {
+    store = requireSubStore(env);
+  } catch (error) {
+    return json({ ok: false, error: error.message }, 500);
+  }
+
   let body;
   try {
     body = await request.json();
@@ -456,81 +471,85 @@ async function handleGenerate(request, env, url) {
     return json({ ok: false, error: '请求体不是合法 JSON' }, 400);
   }
 
-  const baseNodes = parseRawLinks(body.nodeLinks || '');
-  const preferredEndpoints = parsePreferredEndpoints(body.preferredIps || '');
+  try {
+    const baseNodes = parseRawLinks(body.nodeLinks || '');
+    const preferredEndpoints = parsePreferredEndpoints(body.preferredIps || '');
 
-  if (!baseNodes.length) return json({ ok: false, error: '没有识别到可用节点' }, 400);
-  if (!preferredEndpoints.length) return json({ ok: false, error: '没有识别到可用优选地址' }, 400);
+    if (!baseNodes.length) return json({ ok: false, error: '没有识别到可用节点' }, 400);
+    if (!preferredEndpoints.length) return json({ ok: false, error: '没有识别到可用优选地址' }, 400);
 
-  const options = {
-    namePrefix: body.namePrefix || '',
-    keepOriginalHost: body.keepOriginalHost !== false,
-  };
+    const options = {
+      namePrefix: body.namePrefix || '',
+      keepOriginalHost: body.keepOriginalHost !== false,
+    };
 
-  const nodes = buildNodes(baseNodes, preferredEndpoints, options);
+    const nodes = buildNodes(baseNodes, preferredEndpoints, options);
 
-  const payload = {
-    version: 1,
-    createdAt: new Date().toISOString(),
-    options,
-    nodes,
-  };
+    const payload = {
+      version: 1,
+      createdAt: new Date().toISOString(),
+      options,
+      nodes,
+    };
 
-  const dedupHash = await buildDedupHash(body);
-  const dedupKey = `dedup:${dedupHash}`;
+    const dedupHash = await buildDedupHash(body);
+    const dedupKey = `dedup:${dedupHash}`;
 
-  let id = await env.SUB_STORE.get(dedupKey);
+    let id = await store.get(dedupKey);
 
-  if (!id) {
-    id = await createUniqueShortId(env);
-    const ttl = 60 * 60 * 24 * 7; // 7天
+    if (!id) {
+      id = await createUniqueShortId(env);
+      const ttl = 60 * 60 * 24 * 7; // 7天
 
-    await env.SUB_STORE.put(`sub:${id}`, JSON.stringify(payload), {
-      expirationTtl: ttl,
+      await store.put(`sub:${id}`, JSON.stringify(payload), {
+        expirationTtl: ttl,
+      });
+
+      await store.put(dedupKey, id, {
+        expirationTtl: ttl,
+      });
+    }
+
+    const origin = url.origin;
+    const accessToken = env.SUB_ACCESS_TOKEN || '';
+    const withToken = (target) =>
+      `${origin}/sub/${id}${
+        target
+          ? `?target=${target}&token=${encodeURIComponent(accessToken)}`
+          : `?token=${encodeURIComponent(accessToken)}`
+      }`;
+    const clashUrl = withToken('clash');
+
+    return json({
+      ok: true,
+      storage: 'kv',
+      deduplicated: true,
+      shortId: id,
+      urls: {
+        auto: withToken(''),
+        raw: withToken('raw'),
+        clash: clashUrl,
+        convertedClash: buildConvertedClashUrl(clashUrl, env),
+        surge: withToken('surge'),
+      },
+      counts: {
+        inputNodes: baseNodes.length,
+        preferredEndpoints: preferredEndpoints.length,
+        outputNodes: nodes.length,
+      },
+      preview: nodes.slice(0, 20).map((node) => ({
+        name: node.name,
+        type: node.type,
+        server: node.server,
+        port: node.port,
+        host: node.host || '',
+        sni: node.sni || '',
+      })),
+      warnings: accessToken ? [] : ['未检测到 SUB_ACCESS_TOKEN，订阅链接将没有第二层访问保护。'],
     });
-
-    await env.SUB_STORE.put(dedupKey, id, {
-      expirationTtl: ttl,
-    });
+  } catch (error) {
+    return json({ ok: false, error: error.message || '生成订阅失败' }, 500);
   }
-
-  const origin = url.origin;
-  const accessToken = env.SUB_ACCESS_TOKEN || '';
-  const withToken = (target) =>
-    `${origin}/sub/${id}${
-      target
-        ? `?target=${target}&token=${encodeURIComponent(accessToken)}`
-        : `?token=${encodeURIComponent(accessToken)}`
-    }`;
-  const clashUrl = withToken('clash');
-
-  return json({
-    ok: true,
-    storage: 'kv',
-    deduplicated: true,
-    shortId: id,
-    urls: {
-      auto: withToken(''),
-      raw: withToken('raw'),
-      clash: clashUrl,
-      convertedClash: buildConvertedClashUrl(clashUrl, env),
-      surge: withToken('surge'),
-    },
-    counts: {
-      inputNodes: baseNodes.length,
-      preferredEndpoints: preferredEndpoints.length,
-      outputNodes: nodes.length,
-    },
-    preview: nodes.slice(0, 20).map((node) => ({
-      name: node.name,
-      type: node.type,
-      server: node.server,
-      port: node.port,
-      host: node.host || '',
-      sni: node.sni || '',
-    })),
-    warnings: accessToken ? [] : ['未检测到 SUB_ACCESS_TOKEN，订阅链接将没有第二层访问保护。'],
-  });
 }
 
 function validateAccessToken(url, env) {
@@ -544,13 +563,20 @@ function validateAccessToken(url, env) {
 }
 
 async function handleSub(url, env) {
+  let store;
+  try {
+    store = requireSubStore(env);
+  } catch (error) {
+    return text(error.message, 500);
+  }
+
   const tokenCheck = validateAccessToken(url, env);
   if (!tokenCheck.ok) return tokenCheck.response;
 
   const id = url.pathname.split('/').pop();
   if (!id) return text('missing id', 400);
 
-  const raw = await env.SUB_STORE.get(`sub:${id}`);
+  const raw = await store.get(`sub:${id}`);
   if (!raw) return text('not found', 404);
 
   const record = JSON.parse(raw);
